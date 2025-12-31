@@ -21,44 +21,61 @@ Builder uses two main techniques to prepare your embedded Linux rootfs:
 
 ## Configuration
 
-Create a YAML configuration file to define your build:
+Create a YAML configuration file to define your build. The root level supports two component types: `docker` and `deb`.
 
 ```yaml
 # builder.yaml
 
 name: product-bundle
-type: deb
 arch: arm64
 
-packages:
-  - python3
-  - python3-pip
-  - nginx
-
-docker:
-  images:
-    # Pull from registry
-    - name: redis:alpine
-
-    # Build from local Dockerfile
-    - name: my-app:latest
-      build:
-        context: ./app
-        dockerfile: Dockerfile
-
 components:
-  - type: service
-    systemd: path/to/systemd.service
-    enable: true
+  # Docker components - pull or build container images
+  - type: docker
+    images:
+      - name: redis:alpine
+      - name: my-app:latest
+        build:
+          context: ./app
+          dockerfile: Dockerfile
 
-  - type: copy
-    chmod: 775
-    chown: root
+  - type: docker
+    images:
+      - name: postgres:15
+
+  # Deb components - install packages and deploy files/services
+  - type: deb
+    packages:
+      - python3
+      - python3-pip
+      - nginx
+    services:
+      - systemd: path/to/app.service
+        enable: true
+      - systemd: path/to/worker.service
+        enable: true
     files:
       - name: start_script
-        source: ./path/to/script.sh
-        target: /bin
+        source: ./scripts/start.sh
+        target: /usr/local/bin
         chmod: u+x
+      - name: config
+        source: ./config/app.conf
+        target: /etc/myapp
+        chmod: 644
+        chown: root:root
+
+  - type: deb
+    packages:
+      - openssh-server
+    services:
+      - systemd: path/to/sshd-custom.service
+        enable: false
+    files:
+      - name: sshd_config
+        source: ./config/sshd_config
+        target: /etc/ssh
+        chmod: 600
 ```
 
 ### Including Other Configuration Files
@@ -69,61 +86,78 @@ Use the `!INCLUDE` tag to include other YAML files:
 # builder.yaml
 
 name: product-bundle
-type: deb
 arch: arm64
 
-packages: !INCLUDE packages.yaml
-docker: !INCLUDE docker.yaml
-components: !INCLUDE components.yaml
+components:
+  - !INCLUDE docker-components.yaml
+  - !INCLUDE app-deb.yaml
+  - !INCLUDE networking-deb.yaml
 ```
 
 ## Usage
 
+Builder provides two commands: `build` for rootfs preparation and `bundle` for creating flashable packages.
+
+### Build Command
+
+Prepare the rootfs with all configured components:
+
 ```bash
-builder <rootfs-path> <config-path>
+builder build --rootfs <path> --config <path>
 ```
 
-### Arguments
+#### Arguments
 
 | Argument | Description |
 |----------|-------------|
-| `rootfs-path` | Path to the mounted rootfs directory |
-| `config-path` | Path to the YAML configuration file |
+| `--rootfs` | Path to the mounted rootfs directory |
+| `--config` | Path to the YAML configuration file |
 
-### Examples
+#### Examples
 
-**Jetson device:**
 ```bash
-builder /mnt/jetson-rootfs ./jetson-config.yaml
+# Jetson device
+builder build --rootfs /mnt/jetson-rootfs --config ./jetson-config.yaml
+
+# Raspberry Pi
+builder build --rootfs /media/user/rootfs --config ./rpi-config.yaml
 ```
 
-**Raspberry Pi:**
+### Bundle Command
+
+Generate a self-extracting makeself bundle for deployment:
+
 ```bash
-builder /media/user/rootfs ./rpi-config.yaml
+builder bundle --rootfs <path> --config <path> --target <jetson|rpi> --output <path>
 ```
 
-## Makeself Bundle Output
+#### Arguments
 
-Builder can generate self-extracting makeself bundles for easy deployment:
+| Argument | Description |
+|----------|-------------|
+| `--rootfs` | Path to the mounted rootfs directory |
+| `--config` | Path to the YAML configuration file |
+| `--target` | Target platform: `jetson` or `rpi` |
+| `--output` | Output path for the generated bundle |
 
-### Jetson
+#### Jetson Bundle
 
 Generates a makeself bundle containing:
 - Compressed rootfs tarball
 - NVIDIA flashing script for Jetson devices
 
 ```bash
-builder --output-bundle jetson /mnt/jetson-rootfs ./config.yaml
+builder bundle --rootfs /mnt/jetson-rootfs --config ./config.yaml --target jetson --output ./dist/jetson-bundle.run
 ```
 
-### Raspberry Pi
+#### Raspberry Pi Bundle
 
 Generates a makeself bundle containing:
 - Compressed `.img` file
 - SD card flashing script
 
 ```bash
-builder --output-bundle rpi /mnt/rpi-rootfs ./config.yaml
+builder bundle --rootfs /mnt/rpi-rootfs --config ./config.yaml --target rpi --output ./dist/rpi-bundle.run
 ```
 
 ## Requirements
