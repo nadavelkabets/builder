@@ -49,15 +49,23 @@ components:
   # Generates: my-product-backend deb package
   - name: backend
     docker-compose:
-      path: ./compose/backend.yaml
-      target: /opt/backend
-      operation: build
-      services:
-        - api
-        - worker
-        - scheduler
+      - path: ./compose/backend.yaml
+        target: /opt/backend
+        operation: build
+        services:
+          - api
+          - worker
+      - path: ./compose/cache.yaml
+        target: /opt/cache
+        operation: pull
+        services:
+          - redis
     service:
-      - systemd: ./systemd/backend.service
+      - type: systemd
+        service: ./systemd/backend.service
+        enable: true
+      - type: systemd
+        service: ./systemd/worker.service
         enable: true
     file:
       - source: ./config/backend.conf
@@ -68,15 +76,16 @@ components:
   # Generates: my-product-monitoring deb package
   - name: monitoring
     docker-compose:
-      path: ./compose/monitoring.yaml
-      target: /opt/monitoring
-      operation: pull
-      services:
-        - prometheus
-        - grafana
-        - alertmanager
+      - path: ./compose/monitoring.yaml
+        target: /opt/monitoring
+        operation: pull
+        services:
+          - prometheus
+          - grafana
+          - alertmanager
     service:
-      - systemd: ./systemd/monitoring.service
+      - type: systemd
+        service: ./systemd/monitoring.service
         enable: true
 
   # Generates: my-product-scripts deb package
@@ -89,7 +98,8 @@ components:
         target: /usr/local/bin/backup.sh
         chmod: u+x
     service:
-      - systemd: ./systemd/backup.service
+      - type: systemd
+        service: ./systemd/backup.service
         enable: false
 
   # Generates: my-product-ssh deb package
@@ -144,11 +154,11 @@ Use the `!ENV` tag to reference environment variables in your configuration:
 components:
   - name: app
     docker-compose:
-      path: ./compose/app.yaml
-      target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
-      operation: pull
-      services:
-        - api
+      - path: ./compose/app.yaml
+        target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
+        operation: pull
+        services:
+          - api
     file:
       - source: !ENV CONFIG_PATH
         target: /etc/myapp/config.yaml
