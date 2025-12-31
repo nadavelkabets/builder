@@ -60,9 +60,6 @@ components:
       - api
       - worker
       - scheduler
-    packages:
-      - curl
-      - jq
 
   # Generates: product-bundle-monitoring deb package
   - type: docker-compose
