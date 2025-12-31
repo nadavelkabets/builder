@@ -45,10 +45,9 @@ version: 1.0.0  # Optional: defaults to git tag if available
 
 components:
   # Docker Compose components - deploy multi-container applications
-  # Generates: product-bundle-app-stack deb package (version 1.0.0)
+  # Generates: product-bundle-app-stack deb package
   - type: docker-compose
     name: app-stack
-    version: 1.0.0
     path: ./compose/backend.yaml
     target: /opt/myapp
     operation: build
@@ -60,10 +59,9 @@ components:
       - curl
       - jq
 
-  # Generates: product-bundle-monitoring deb package (version 2.1.0)
+  # Generates: product-bundle-monitoring deb package
   - type: docker-compose
     name: monitoring
-    version: 2.1.0
     path: ./compose/monitoring.yaml
     target: /opt/monitoring
     operation: pull
@@ -73,56 +71,50 @@ components:
       - alertmanager
 
   # Deb components - install system packages
-  # Generates: product-bundle-core deb package (version 1.0.0)
+  # Generates: product-bundle-core deb package
   - type: deb
     name: core
-    version: 1.0.0
     packages:
       - python3
       - python3-pip
       - nginx
 
-  # Generates: product-bundle-ssh deb package (version 1.0.0)
+  # Generates: product-bundle-ssh deb package
   - type: deb
     name: ssh
-    version: 1.0.0
     packages:
       - openssh-server
 
   # Service components - deploy and manage systemd services
-  # Generates: product-bundle-app-services deb package (version 1.2.0)
+  # Generates: product-bundle-app-services deb package
   - type: service
     name: app-services
-    version: 1.2.0
     services:
       - systemd: path/to/app.service
         enable: true
       - systemd: path/to/worker.service
         enable: true
 
-  # Generates: product-bundle-sshd deb package (version 1.0.0)
+  # Generates: product-bundle-sshd deb package
   - type: service
     name: sshd
-    version: 1.0.0
     services:
       - systemd: path/to/sshd-custom.service
         enable: false
 
   # Copy components - deploy files with permissions
-  # Generates: product-bundle-scripts deb package (version 1.0.0)
+  # Generates: product-bundle-scripts deb package
   - type: copy
     name: scripts
-    version: 1.0.0
     files:
       - name: start_script
         source: ./scripts/start.sh
         target: /usr/local/bin
         chmod: u+x
 
-  # Generates: product-bundle-configs deb package (version 1.1.0)
+  # Generates: product-bundle-configs deb package
   - type: copy
     name: configs
-    version: 1.1.0
     files:
       - name: app_config
         source: ./config/app.conf
@@ -183,11 +175,11 @@ Use the `!ENV` tag to reference environment variables in your configuration:
 # builder.yaml
 
 name: product-bundle
+version: !ENV APP_VERSION  # Can use env var for global version
 
 components:
   - type: docker-compose
     name: app
-    version: !ENV APP_VERSION
     path: ./compose/app.yaml
     target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
     operation: pull
@@ -196,7 +188,6 @@ components:
 
   - type: copy
     name: configs
-    version: 1.0.0
     files:
       - name: api_config
         source: !ENV CONFIG_PATH
@@ -249,7 +240,6 @@ builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --ou
 | `--config` | Path to the YAML configuration file |
 | `--target` | Target platform: `jetson` or `rpi` |
 | `--output` | Output directory (default: `./bundle`) |
-| `--name` | Override output filename (optional, see naming conventions below) |
 | `--bsp` | (Jetson only) Path or URL to the NVIDIA JetPack BSP |
 | `--workdir` | Optional custom working directory (default: tmpdir, auto-cleaned) |
 | `--version` | Override global package version (optional) |
@@ -282,8 +272,6 @@ Example: `product-bundle-20251231-feature-auth-a1b2c.run`
 
 The date-first format ensures that deb packages sort correctly and newer development builds always have a higher version number.
 
-Use `--name` to override the auto-generated filename.
-
 #### Jetson Bundle
 
 Generates a makeself bundle containing:
@@ -308,13 +296,12 @@ builder bundle \
   --target jetson \
   --output ./dist
 
-# Using URLs with custom filename
+# Using URLs
 builder bundle \
   --rootfs https://example.com/jetson-rootfs.tar \
   --bsp https://example.com/jetpack-bsp.tar \
   --config ./config.yaml \
-  --target jetson \
-  --name my-custom-bundle.run
+  --target jetson
 ```
 
 #### Raspberry Pi Bundle
@@ -337,12 +324,11 @@ builder bundle \
   --target rpi \
   --output ./dist
 
-# Using a URL with custom filename
+# Using a URL
 builder bundle \
   --rootfs https://example.com/raspios.img \
   --config ./config.yaml \
-  --target rpi \
-  --name my-rpi-bundle.run
+  --target rpi
 ```
 
 ## Requirements
