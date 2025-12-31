@@ -301,6 +301,8 @@ sudo ./my-product-1.0.0.run
 - makeself (for bundle generation)
 - dpkg-deb (for package generation)
 
+<!-- TODO: Consider using fakeroot or debhelper for building deb packages without requiring root privileges -->
+
 ## License
 
 MIT
