@@ -41,12 +41,14 @@ Create a YAML configuration file to define your build. The root level supports f
 # builder.yaml
 
 name: product-bundle
+version: 1.0.0  # Global version for master package
 
 components:
   # Docker Compose components - deploy multi-container applications
-  # Generates: product-bundle-app-stack deb package
+  # Generates: product-bundle-app-stack deb package (version 1.0.0)
   - type: docker-compose
     name: app-stack
+    version: 1.0.0
     path: ./compose/backend.yaml
     target: /opt/myapp
     operation: build
@@ -58,9 +60,10 @@ components:
       - curl
       - jq
 
-  # Generates: product-bundle-monitoring deb package
+  # Generates: product-bundle-monitoring deb package (version 2.1.0)
   - type: docker-compose
     name: monitoring
+    version: 2.1.0
     path: ./compose/monitoring.yaml
     target: /opt/monitoring
     operation: pull
@@ -70,50 +73,56 @@ components:
       - alertmanager
 
   # Deb components - install system packages
-  # Generates: product-bundle-core deb package
+  # Generates: product-bundle-core deb package (version 1.0.0)
   - type: deb
     name: core
+    version: 1.0.0
     packages:
       - python3
       - python3-pip
       - nginx
 
-  # Generates: product-bundle-ssh deb package
+  # Generates: product-bundle-ssh deb package (version 1.0.0)
   - type: deb
     name: ssh
+    version: 1.0.0
     packages:
       - openssh-server
 
   # Service components - deploy and manage systemd services
-  # Generates: product-bundle-app-services deb package
+  # Generates: product-bundle-app-services deb package (version 1.2.0)
   - type: service
     name: app-services
+    version: 1.2.0
     services:
       - systemd: path/to/app.service
         enable: true
       - systemd: path/to/worker.service
         enable: true
 
-  # Generates: product-bundle-sshd deb package
+  # Generates: product-bundle-sshd deb package (version 1.0.0)
   - type: service
     name: sshd
+    version: 1.0.0
     services:
       - systemd: path/to/sshd-custom.service
         enable: false
 
   # Copy components - deploy files with permissions
-  # Generates: product-bundle-scripts deb package
+  # Generates: product-bundle-scripts deb package (version 1.0.0)
   - type: copy
     name: scripts
+    version: 1.0.0
     files:
       - name: start_script
         source: ./scripts/start.sh
         target: /usr/local/bin
         chmod: u+x
 
-  # Generates: product-bundle-configs deb package
+  # Generates: product-bundle-configs deb package (version 1.1.0)
   - type: copy
     name: configs
+    version: 1.1.0
     files:
       - name: app_config
         source: ./config/app.conf
@@ -184,6 +193,7 @@ builder build --rootfs <path> --config <path>
 |----------|-------------|
 | `--rootfs` | Path to the mounted rootfs directory |
 | `--config` | Path to the YAML configuration file |
+| `--version` | Override global package version (optional) |
 
 #### Examples
 
@@ -213,6 +223,7 @@ builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --ou
 | `--output` | Output path for the generated bundle |
 | `--bsp` | (Jetson only) Path or URL to the NVIDIA JetPack BSP |
 | `--workdir` | Optional custom working directory (default: tmpdir, auto-cleaned) |
+| `--version` | Override global package version (optional) |
 
 #### Jetson Bundle
 
