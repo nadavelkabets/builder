@@ -75,7 +75,11 @@ components:
     name: app-stack
     path: ./compose/backend.yaml
     target: /opt/myapp
-    build: true
+    operation: build
+    services:
+      - api
+      - worker
+      - scheduler
     packages:
       - curl
       - jq
@@ -85,7 +89,11 @@ components:
     name: monitoring
     path: ./compose/monitoring.yaml
     target: /opt/monitoring
-    pull: true
+    operation: pull
+    services:
+      - prometheus
+      - grafana
+      - alertmanager
 
   # Deb components - install packages and deploy files/services
   # Generates: product-bundle-core deb package
