@@ -41,7 +41,7 @@ Create a YAML configuration file to define your build. The root level supports f
 # builder.yaml
 
 name: product-bundle
-version: 1.0.0  # Global version for master package
+version: 1.0.0  # Optional: defaults to git tag if available
 
 components:
   # Docker Compose components - deploy multi-container applications
@@ -175,6 +175,34 @@ components:
   - !INCLUDE networking-deb.yaml
 ```
 
+### Environment Variables
+
+Use the `!ENV` tag to reference environment variables in your configuration:
+
+```yaml
+# builder.yaml
+
+name: product-bundle
+
+components:
+  - type: docker-compose
+    name: app
+    version: !ENV APP_VERSION
+    path: ./compose/app.yaml
+    target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
+    operation: pull
+    services:
+      - api
+
+  - type: copy
+    name: configs
+    version: 1.0.0
+    files:
+      - name: api_config
+        source: !ENV CONFIG_PATH
+        target: /etc/myapp
+```
+
 ## Usage
 
 Builder provides two commands: `build` for rootfs preparation and `bundle` for creating flashable packages.
@@ -220,10 +248,29 @@ builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --ou
 | `--rootfs` | Path or URL to the rootfs image (`.img` for RPi, `.tar` for Jetson) |
 | `--config` | Path to the YAML configuration file |
 | `--target` | Target platform: `jetson` or `rpi` |
-| `--output` | Output path for the generated bundle |
+| `--output` | Output directory (default: `./bundle`) |
+| `--name` | Override output filename (optional, see naming conventions below) |
 | `--bsp` | (Jetson only) Path or URL to the NVIDIA JetPack BSP |
 | `--workdir` | Optional custom working directory (default: tmpdir, auto-cleaned) |
 | `--version` | Override global package version (optional) |
+
+#### Output Naming Conventions
+
+By default, the output filename is automatically generated based on git state:
+
+**Tagged release:**
+```
+<bundle-name>-<version>.run
+```
+Example: `product-bundle-1.0.0.run`
+
+**Development build (no tag):**
+```
+<bundle-name>-<dd/mm/yyyy>-<branch-name>-<commit-hash>.run
+```
+Example: `product-bundle-31/12/2025-feature-auth-a1b2c.run`
+
+Use `--name` to override the auto-generated filename.
 
 #### Jetson Bundle
 
@@ -234,20 +281,28 @@ Generates a makeself bundle containing:
 Requires the rootfs tar and JetPack BSP:
 
 ```bash
+# Uses default output: ./bundle/product-bundle-<version>.run
+builder bundle \
+  --rootfs ./jetson-rootfs.tar \
+  --bsp ./jetpack-bsp.tar \
+  --config ./config.yaml \
+  --target jetson
+
+# Custom output directory
 builder bundle \
   --rootfs ./jetson-rootfs.tar \
   --bsp ./jetpack-bsp.tar \
   --config ./config.yaml \
   --target jetson \
-  --output ./dist/jetson-bundle.run
+  --output ./dist
 
-# Or using URLs
+# Using URLs with custom filename
 builder bundle \
   --rootfs https://example.com/jetson-rootfs.tar \
   --bsp https://example.com/jetpack-bsp.tar \
   --config ./config.yaml \
   --target jetson \
-  --output ./dist/jetson-bundle.run
+  --name my-custom-bundle.run
 ```
 
 #### Raspberry Pi Bundle
@@ -257,18 +312,25 @@ Generates a makeself bundle containing:
 - SD card flashing script
 
 ```bash
+# Uses default output: ./bundle/product-bundle-<version>.run
+builder bundle \
+  --rootfs ./raspios.img \
+  --config ./config.yaml \
+  --target rpi
+
+# Custom output directory
 builder bundle \
   --rootfs ./raspios.img \
   --config ./config.yaml \
   --target rpi \
-  --output ./dist/rpi-bundle.run
+  --output ./dist
 
-# Or using a URL
+# Using a URL with custom filename
 builder bundle \
   --rootfs https://example.com/raspios.img \
   --config ./config.yaml \
   --target rpi \
-  --output ./dist/rpi-bundle.run
+  --name my-rpi-bundle.run
 ```
 
 ## Requirements
