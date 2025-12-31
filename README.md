@@ -108,15 +108,35 @@ components:
 
 ### Including Other Configuration Files
 
-Use the `!INCLUDE` tag to include other YAML files:
+Use the `!INCLUDE` tag to include other YAML files. Included files contain a list of components that gets flattened into the parent list:
 
 ```yaml
 # builder.yaml
 
 components:
-  - !INCLUDE compose-components.yaml
-  - !INCLUDE systemd-components.yaml
-  - !INCLUDE file-components.yaml
+  - !INCLUDE backend.yaml
+  - !INCLUDE monitoring.yaml
+```
+
+```yaml
+# backend.yaml
+
+- type: docker-compose
+  path: ./compose/backend.yaml
+  target: /opt/backend
+  operation: build
+  services:
+    - api
+    - worker
+
+- type: systemd
+  service: ./systemd/backend.service
+  enable: true
+
+- type: file
+  source: ./config/backend.conf
+  target: /etc/myapp/backend.conf
+  chmod: 644
 ```
 
 ### Environment Variables
