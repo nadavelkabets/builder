@@ -256,7 +256,15 @@ builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --ou
 
 #### Output Naming Conventions
 
-By default, the output filename is automatically generated based on git state:
+By default, the output filename is automatically generated based on git state.
+
+**Version Requirements:**
+
+Git tags must be valid Debian package versions (must start with a digit). Invalid tags are rejected:
+- `1.0.0` - valid
+- `2.1.0-beta` - valid
+- `v1.0.0` - invalid (starts with letter)
+- `release-1.0` - invalid (starts with letter)
 
 **Tagged release:**
 ```
@@ -265,10 +273,14 @@ By default, the output filename is automatically generated based on git state:
 Example: `product-bundle-1.0.0.run`
 
 **Development build (no tag):**
+
+Development versions always start with the date to ensure proper version ordering:
 ```
-<bundle-name>-<dd/mm/yyyy>-<branch-name>-<commit-hash>.run
+<bundle-name>-<yyyymmdd>-<branch-name>-<commit-hash>.run
 ```
-Example: `product-bundle-31/12/2025-feature-auth-a1b2c.run`
+Example: `product-bundle-20251231-feature-auth-a1b2c.run`
+
+The date-first format ensures that deb packages sort correctly and newer development builds always have a higher version number.
 
 Use `--name` to override the auto-generated filename.
 
