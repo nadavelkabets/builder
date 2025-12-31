@@ -43,6 +43,11 @@ Create a YAML configuration file to define your build. The root level supports f
 name: product-bundle
 version: 1.0.0  # Optional: defaults to git tag if available
 
+# External apt dependencies for the master package
+depends:
+  - docker-ce
+  - docker-compose-plugin
+
 components:
   # Docker Compose components - deploy multi-container applications
   # Generates: product-bundle-app-stack deb package
@@ -212,7 +217,6 @@ builder build --rootfs <path> --config <path>
 |----------|-------------|
 | `--rootfs` | Path to the mounted rootfs directory |
 | `--config` | Path to the YAML configuration file |
-| `--version` | Override global package version (optional) |
 
 #### Examples
 
@@ -242,7 +246,6 @@ builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --ou
 | `--output` | Output directory (default: `./bundle`) |
 | `--bsp` | (Jetson only) Path or URL to the NVIDIA JetPack BSP |
 | `--workdir` | Optional custom working directory (default: tmpdir, auto-cleaned) |
-| `--version` | Override global package version (optional) |
 
 #### Output Naming Conventions
 
