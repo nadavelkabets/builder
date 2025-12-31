@@ -35,7 +35,7 @@ Docker Compose packages do not embed image layers. Instead, they pull from the r
 
 ## Configuration
 
-Create a YAML configuration file to define your build. Each component in the list generates a deb package and can contain any combination of `docker-compose`, `service`, and `file` entries.
+Create a YAML configuration file to define your build. Each component in the list generates a deb package and can contain any combination of `docker-compose`, `systemd`, and `file` entries.
 
 ```yaml
 # builder.yaml
@@ -60,12 +60,10 @@ components:
         operation: pull
         services:
           - redis
-    service:
-      - type: systemd
-        service: ./systemd/backend.service
+    systemd:
+      - service: ./systemd/backend.service
         enable: true
-      - type: systemd
-        service: ./systemd/worker.service
+      - service: ./systemd/worker.service
         enable: true
     file:
       - source: ./config/backend.conf
@@ -83,9 +81,8 @@ components:
           - prometheus
           - grafana
           - alertmanager
-    service:
-      - type: systemd
-        service: ./systemd/monitoring.service
+    systemd:
+      - service: ./systemd/monitoring.service
         enable: true
 
   # Generates: my-product-scripts deb package
@@ -97,9 +94,8 @@ components:
       - source: ./scripts/backup.sh
         target: /usr/local/bin/backup.sh
         chmod: u+x
-    service:
-      - type: systemd
-        service: ./systemd/backup.service
+    systemd:
+      - service: ./systemd/backup.service
         enable: false
 
   # Generates: my-product-ssh deb package
@@ -116,9 +112,9 @@ From the above configuration, builder generates:
 
 ```
 my-product                    # Master package (depends on all below)
-├── my-product-backend        # docker-compose + service + file
-├── my-product-monitoring     # docker-compose + service
-├── my-product-scripts        # file + service
+├── my-product-backend        # docker-compose + systemd + file
+├── my-product-monitoring     # docker-compose + systemd
+├── my-product-scripts        # file + systemd
 └── my-product-ssh            # file only
 ```
 
