@@ -314,6 +314,18 @@ builder bundle \
   --target rpi
 ```
 
+### Running the Bundle
+
+Execute the generated makeself bundle with root privileges:
+
+```bash
+# Jetson - flashes the device
+sudo ./my-product-1.0.0.run
+
+# Raspberry Pi - writes to SD card
+sudo ./my-product-1.0.0.run
+```
+
 ## Requirements
 
 - Docker with Docker-in-Docker support
