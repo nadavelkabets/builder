@@ -26,7 +26,7 @@ Builder generates deb packages for all component types to enable proper lifecycl
 
 - **Master Package**: A global deb package (`<name>`) that declares dependencies on all component packages. Removing the master package triggers removal of all components, including Docker images and containers.
 
-- **Component Packages**: Each `docker-compose`, `deb`, `service`, and `copy` component generates its own deb package (`<name>-<component>`). These packages handle:
+- **Component Packages**: Each `docker-compose`, `service`, and `copy` component generates its own deb package (`<name>-<component>`). These packages handle:
   - **Installation**: Pull/build Docker images, deploy files, enable services
   - **Upgrade**: Update images, migrate configurations
   - **Removal**: Stop containers, remove images, clean up files
@@ -35,13 +35,10 @@ Docker Compose packages do not embed image layers. Instead, they pull from the r
 
 ## Configuration
 
-Create a YAML configuration file to define your build. The root level supports four component types: `docker-compose`, `deb`, `service`, and `copy`.
+Create a YAML configuration file to define your build. The root level supports three component types: `docker-compose`, `service`, and `copy`.
 
 ```yaml
 # builder.yaml
-
-name: product-bundle
-version: 1.0.0  # Optional: defaults to git tag if available
 
 # External apt dependencies for the master package
 depends:
@@ -71,21 +68,6 @@ components:
       - prometheus
       - grafana
       - alertmanager
-
-  # Deb components - install system packages
-  # Generates: product-bundle-core deb package
-  - type: deb
-    name: core
-    packages:
-      - python3
-      - python3-pip
-      - nginx
-
-  # Generates: product-bundle-ssh deb package
-  - type: deb
-    name: ssh
-    packages:
-      - openssh-server
 
   # Service components - deploy and manage systemd services
   # Generates: product-bundle-app-services deb package
@@ -137,8 +119,6 @@ From the above configuration, builder generates:
 product-bundle                    # Master package (depends on all below)
 ├── product-bundle-app-stack      # Docker Compose component
 ├── product-bundle-monitoring     # Docker Compose component
-├── product-bundle-core           # Deb component
-├── product-bundle-ssh            # Deb component
 ├── product-bundle-app-services   # Service component
 ├── product-bundle-sshd           # Service component
 ├── product-bundle-scripts        # Copy component
@@ -161,12 +141,10 @@ Use the `!INCLUDE` tag to include other YAML files:
 ```yaml
 # builder.yaml
 
-name: product-bundle
-
 components:
   - !INCLUDE compose-components.yaml
-  - !INCLUDE app-deb.yaml
-  - !INCLUDE networking-deb.yaml
+  - !INCLUDE service-components.yaml
+  - !INCLUDE copy-components.yaml
 ```
 
 ### Environment Variables
@@ -175,9 +153,6 @@ Use the `!ENV` tag to reference environment variables in your configuration:
 
 ```yaml
 # builder.yaml
-
-name: product-bundle
-version: !ENV APP_VERSION  # Can use env var for global version
 
 components:
   - type: docker-compose
@@ -214,15 +189,16 @@ builder build --rootfs <path> --config <path>
 |----------|-------------|
 | `--rootfs` | Path to the mounted rootfs directory |
 | `--config` | Path to the YAML configuration file |
+| `--name` | Bundle name (used for package naming) |
 
 #### Examples
 
 ```bash
 # Jetson device
-builder build --rootfs /mnt/jetson-rootfs --config ./jetson-config.yaml
+builder build --name my-product --rootfs /mnt/jetson-rootfs --config ./config.yaml
 
 # Raspberry Pi
-builder build --rootfs /media/user/rootfs --config ./rpi-config.yaml
+builder build --name my-product --rootfs /media/user/rootfs --config ./config.yaml
 ```
 
 ### Bundle Command
@@ -239,6 +215,7 @@ builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --ou
 |----------|-------------|
 | `--rootfs` | Path or URL to the rootfs image (`.img` for RPi, `.tar` for Jetson) |
 | `--config` | Path to the YAML configuration file |
+| `--name` | Bundle name (used for package naming) |
 | `--target` | Target platform: `jetson` or `rpi` |
 | `--output` | Output directory (default: `./bundle`) |
 | `--bsp` | (Jetson only) Path or URL to the NVIDIA JetPack BSP |
@@ -281,8 +258,9 @@ Generates a makeself bundle containing:
 Requires the rootfs tar and JetPack BSP:
 
 ```bash
-# Uses default output: ./bundle/product-bundle-<version>.run
+# Uses default output: ./bundle/my-product-<version>.run
 builder bundle \
+  --name my-product \
   --rootfs ./jetson-rootfs.tar \
   --bsp ./jetpack-bsp.tar \
   --config ./config.yaml \
@@ -290,6 +268,7 @@ builder bundle \
 
 # Custom output directory
 builder bundle \
+  --name my-product \
   --rootfs ./jetson-rootfs.tar \
   --bsp ./jetpack-bsp.tar \
   --config ./config.yaml \
@@ -298,6 +277,7 @@ builder bundle \
 
 # Using URLs
 builder bundle \
+  --name my-product \
   --rootfs https://example.com/jetson-rootfs.tar \
   --bsp https://example.com/jetpack-bsp.tar \
   --config ./config.yaml \
@@ -311,14 +291,16 @@ Generates a makeself bundle containing:
 - SD card flashing script
 
 ```bash
-# Uses default output: ./bundle/product-bundle-<version>.run
+# Uses default output: ./bundle/my-product-<version>.run
 builder bundle \
+  --name my-product \
   --rootfs ./raspios.img \
   --config ./config.yaml \
   --target rpi
 
 # Custom output directory
 builder bundle \
+  --name my-product \
   --rootfs ./raspios.img \
   --config ./config.yaml \
   --target rpi \
@@ -326,6 +308,7 @@ builder bundle \
 
 # Using a URL
 builder bundle \
+  --name my-product \
   --rootfs https://example.com/raspios.img \
   --config ./config.yaml \
   --target rpi
