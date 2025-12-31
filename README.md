@@ -243,9 +243,9 @@ Example: `product-bundle-1.0.0.run`
 
 Development versions always start with the date to ensure proper version ordering:
 ```
-<bundle-name>-<yyyymmdd>-<branch-name>-<commit-hash>.run
+<bundle-name>-<yyyymmdd>-<branch-name>-<commit-hash>-dev.run
 ```
-Example: `product-bundle-20251231-feature-auth-a1b2c.run`
+Example: `my-product-20251231-feature-auth-a1b2c-dev.run`
 
 The date-first format ensures that deb packages sort correctly and newer development builds always have a higher version number.
 
