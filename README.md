@@ -11,6 +11,7 @@ Builder streamlines the process of preparing embedded Linux rootfs images by aut
 - **Package installation** - Install system packages into the rootfs via chroot
 - **Component deployment** - Install systemd services, copy files with proper permissions
 - **Flashable bundle creation** - Generate self-extracting makeself bundles ready for deployment
+- **Unified package management** - All components wrapped in deb packages for clean installation, upgrade, and removal
 
 ## How It Works
 
@@ -19,6 +20,19 @@ Builder uses two main techniques to prepare your embedded Linux rootfs:
 1. **Docker-in-Docker with Volume Mounting**: Docker images are built or pulled and then loaded into the target system by mounting the rootfs's `/var/lib/docker` directory as a volume. This ensures containers are ready to run on first boot.
 
 2. **Chroot Package Installation**: System packages are installed directly into the rootfs using chroot, providing a native installation environment without requiring the actual target hardware.
+
+### Package Management Strategy
+
+Builder generates deb packages for all component types to enable proper lifecycle management:
+
+- **Master Package**: A global deb package (`<name>`) that declares dependencies on all component packages. Removing the master package triggers removal of all components, including Docker images and containers.
+
+- **Component Packages**: Each `docker`, `docker-compose`, and `deb` component generates its own deb package (`<name>-<component>`). These packages handle:
+  - **Installation**: Pull/build Docker images, deploy files, enable services
+  - **Upgrade**: Update images, migrate configurations
+  - **Removal**: Stop containers, remove images, clean up files
+
+Docker and docker-compose packages do not embed image layers. Instead, they pull from the registry or build locally during installation, keeping packages lightweight.
 
 ## Configuration
 
@@ -31,35 +45,52 @@ name: product-bundle
 
 components:
   # Docker components - pull or build container images
+  # Generates: product-bundle-redis deb package
   - type: docker
+    name: redis
+    packages:
+      - redis-tools
     images:
       # Pull from registry (name only)
       - name: redis:alpine
-      - name: postgres:15
 
+  # Generates: product-bundle-backend deb package
+  - type: docker
+    name: backend
+    packages:
+      - python3
+      - python3-pip
+    images:
+      # Pull from registry
+      - name: postgres:15
       # Build from local Dockerfile
       - name: my-app:latest
         build:
           path: ./app
           context: .
 
-  - type: docker
-    images:
-      - name: nginx:alpine
-
   # Docker Compose components - deploy multi-container applications
+  # Generates: product-bundle-app-stack deb package
   - type: docker-compose
+    name: app-stack
     path: ./compose/backend.yaml
     target: /opt/myapp
     build: true
+    packages:
+      - curl
+      - jq
 
+  # Generates: product-bundle-monitoring deb package
   - type: docker-compose
+    name: monitoring
     path: ./compose/monitoring.yaml
     target: /opt/monitoring
     pull: true
 
   # Deb components - install packages and deploy files/services
+  # Generates: product-bundle-core deb package
   - type: deb
+    name: core
     packages:
       - python3
       - python3-pip
@@ -80,7 +111,9 @@ components:
         chmod: 644
         chown: root:root
 
+  # Generates: product-bundle-ssh deb package
   - type: deb
+    name: ssh
     packages:
       - openssh-server
     services:
@@ -91,6 +124,29 @@ components:
         source: ./config/sshd_config
         target: /etc/ssh
         chmod: 600
+```
+
+### Generated Package Structure
+
+From the above configuration, builder generates:
+
+```
+product-bundle                    # Master package (depends on all below)
+├── product-bundle-redis          # Docker component
+├── product-bundle-backend        # Docker component
+├── product-bundle-app-stack      # Docker Compose component
+├── product-bundle-monitoring     # Docker Compose component
+├── product-bundle-core           # Deb component
+└── product-bundle-ssh            # Deb component
+```
+
+**Uninstall behavior:**
+```bash
+# Remove everything
+apt remove product-bundle
+
+# Remove only the monitoring stack
+apt remove product-bundle-monitoring
 ```
 
 ### Including Other Configuration Files
@@ -208,6 +264,7 @@ builder bundle \
 - Docker with Docker-in-Docker support
 - Root privileges (for chroot operations)
 - makeself (for bundle generation)
+- dpkg-deb (for package generation)
 
 ## License
 
