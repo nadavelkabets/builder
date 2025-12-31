@@ -8,7 +8,7 @@ Builder streamlines the process of preparing embedded Linux rootfs images by aut
 
 - **Docker Compose deployment** - Build or pull Docker images and deploy multi-container applications via compose files
 - **Package installation** - Install system packages into the rootfs via chroot
-- **Component deployment** - Install systemd services, copy files with proper permissions
+- **Component deployment** - Install systemd services, deploy files with proper permissions
 - **Flashable bundle creation** - Generate self-extracting makeself bundles ready for deployment
 - **Unified package management** - All components wrapped in deb packages for clean installation, upgrade, and removal
 
@@ -22,11 +22,11 @@ Builder uses two main techniques to prepare your embedded Linux rootfs:
 
 ### Package Management Strategy
 
-Builder generates deb packages for all component types to enable proper lifecycle management:
+Builder generates deb packages for all components to enable proper lifecycle management:
 
 - **Master Package**: A global deb package (`<name>`) that declares dependencies on all component packages. Removing the master package triggers removal of all components, including Docker images and containers.
 
-- **Component Packages**: Each `docker-compose`, `service`, and `copy` component generates its own deb package (`<name>-<component>`). These packages handle:
+- **Component Packages**: Each component in the `components` list generates its own deb package (`<name>-<component>`). These packages handle:
   - **Installation**: Pull/build Docker images, deploy files, enable services
   - **Upgrade**: Update images, migrate configurations
   - **Removal**: Stop containers, remove images, clean up files
@@ -35,7 +35,7 @@ Docker Compose packages do not embed image layers. Instead, they pull from the r
 
 ## Configuration
 
-Create a YAML configuration file to define your build. The root level supports three component types: `docker-compose`, `service`, and `copy`.
+Create a YAML configuration file to define your build. Each component in the list generates a deb package and can contain any combination of `docker-compose`, `service`, and `file` entries.
 
 ```yaml
 # builder.yaml
@@ -46,68 +46,57 @@ depends:
   - docker-compose-plugin
 
 components:
-  # Docker Compose components - deploy multi-container applications
-  # Generates: product-bundle-app-stack deb package
-  - type: docker-compose
-    name: app-stack
-    path: ./compose/backend.yaml
-    target: /opt/myapp
-    operation: build
-    services:
-      - api
-      - worker
-      - scheduler
-
-  # Generates: product-bundle-monitoring deb package
-  - type: docker-compose
-    name: monitoring
-    path: ./compose/monitoring.yaml
-    target: /opt/monitoring
-    operation: pull
-    services:
-      - prometheus
-      - grafana
-      - alertmanager
-
-  # Service components - deploy and manage systemd services
-  # Generates: product-bundle-app-services deb package
-  - type: service
-    name: app-services
-    services:
-      - systemd: path/to/app.service
+  # Generates: my-product-backend deb package
+  - name: backend
+    docker-compose:
+      path: ./compose/backend.yaml
+      target: /opt/backend
+      operation: build
+      services:
+        - api
+        - worker
+        - scheduler
+    service:
+      - systemd: ./systemd/backend.service
         enable: true
-      - systemd: path/to/worker.service
-        enable: true
-
-  # Generates: product-bundle-sshd deb package
-  - type: service
-    name: sshd
-    services:
-      - systemd: path/to/sshd-custom.service
-        enable: false
-
-  # Copy components - deploy files with permissions
-  # Generates: product-bundle-scripts deb package
-  - type: copy
-    name: scripts
-    files:
-      - name: start_script
-        source: ./scripts/start.sh
-        target: /usr/local/bin
-        chmod: u+x
-
-  # Generates: product-bundle-configs deb package
-  - type: copy
-    name: configs
-    files:
-      - name: app_config
-        source: ./config/app.conf
-        target: /etc/myapp
+    file:
+      - source: ./config/backend.conf
+        target: /etc/myapp/backend.conf
         chmod: 644
         chown: root:root
-      - name: sshd_config
-        source: ./config/sshd_config
-        target: /etc/ssh
+
+  # Generates: my-product-monitoring deb package
+  - name: monitoring
+    docker-compose:
+      path: ./compose/monitoring.yaml
+      target: /opt/monitoring
+      operation: pull
+      services:
+        - prometheus
+        - grafana
+        - alertmanager
+    service:
+      - systemd: ./systemd/monitoring.service
+        enable: true
+
+  # Generates: my-product-scripts deb package
+  - name: scripts
+    file:
+      - source: ./scripts/start.sh
+        target: /usr/local/bin/start.sh
+        chmod: u+x
+      - source: ./scripts/backup.sh
+        target: /usr/local/bin/backup.sh
+        chmod: u+x
+    service:
+      - systemd: ./systemd/backup.service
+        enable: false
+
+  # Generates: my-product-ssh deb package
+  - name: ssh
+    file:
+      - source: ./config/sshd_config
+        target: /etc/ssh/sshd_config
         chmod: 600
 ```
 
@@ -116,22 +105,20 @@ components:
 From the above configuration, builder generates:
 
 ```
-product-bundle                    # Master package (depends on all below)
-├── product-bundle-app-stack      # Docker Compose component
-├── product-bundle-monitoring     # Docker Compose component
-├── product-bundle-app-services   # Service component
-├── product-bundle-sshd           # Service component
-├── product-bundle-scripts        # Copy component
-└── product-bundle-configs        # Copy component
+my-product                    # Master package (depends on all below)
+├── my-product-backend        # docker-compose + service + file
+├── my-product-monitoring     # docker-compose + service
+├── my-product-scripts        # file + service
+└── my-product-ssh            # file only
 ```
 
 **Uninstall behavior:**
 ```bash
 # Remove everything
-apt remove product-bundle
+apt remove my-product
 
 # Remove only the monitoring stack
-apt remove product-bundle-monitoring
+apt remove my-product-monitoring
 ```
 
 ### Including Other Configuration Files
@@ -142,9 +129,9 @@ Use the `!INCLUDE` tag to include other YAML files:
 # builder.yaml
 
 components:
-  - !INCLUDE compose-components.yaml
-  - !INCLUDE service-components.yaml
-  - !INCLUDE copy-components.yaml
+  - !INCLUDE backend.yaml
+  - !INCLUDE monitoring.yaml
+  - !INCLUDE scripts.yaml
 ```
 
 ### Environment Variables
@@ -155,20 +142,16 @@ Use the `!ENV` tag to reference environment variables in your configuration:
 # builder.yaml
 
 components:
-  - type: docker-compose
-    name: app
-    path: ./compose/app.yaml
-    target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
-    operation: pull
-    services:
-      - api
-
-  - type: copy
-    name: configs
-    files:
-      - name: api_config
-        source: !ENV CONFIG_PATH
-        target: /etc/myapp
+  - name: app
+    docker-compose:
+      path: ./compose/app.yaml
+      target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
+      operation: pull
+      services:
+        - api
+    file:
+      - source: !ENV CONFIG_PATH
+        target: /etc/myapp/config.yaml
 ```
 
 ## Usage
@@ -237,7 +220,7 @@ Git tags must be valid Debian package versions (must start with a digit). Invali
 ```
 <bundle-name>-<version>.run
 ```
-Example: `product-bundle-1.0.0.run`
+Example: `my-product-1.0.0.run`
 
 **Development build (no tag):**
 
