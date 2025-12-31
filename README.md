@@ -7,6 +7,7 @@ A deployment utility for embedded Linux projects that simplifies dependency mana
 Builder streamlines the process of preparing embedded Linux rootfs images by automating:
 
 - **Docker image deployment** - Build or pull Docker images and load them directly into the target rootfs using a Docker-in-Docker approach
+- **Docker Compose deployment** - Deploy multi-container applications with compose files
 - **Package installation** - Install system packages into the rootfs via chroot
 - **Component deployment** - Install systemd services, copy files with proper permissions
 - **Flashable bundle creation** - Generate self-extracting makeself bundles ready for deployment
@@ -21,27 +22,41 @@ Builder uses two main techniques to prepare your embedded Linux rootfs:
 
 ## Configuration
 
-Create a YAML configuration file to define your build. The root level supports two component types: `docker` and `deb`.
+Create a YAML configuration file to define your build. The root level supports three component types: `docker`, `docker-compose`, and `deb`.
 
 ```yaml
 # builder.yaml
 
 name: product-bundle
-arch: arm64
 
 components:
   # Docker components - pull or build container images
   - type: docker
     images:
+      # Pull from registry (name only)
       - name: redis:alpine
+      - name: postgres:15
+
+      # Build from local Dockerfile
       - name: my-app:latest
         build:
-          context: ./app
-          dockerfile: Dockerfile
+          path: ./app
+          context: .
 
   - type: docker
     images:
-      - name: postgres:15
+      - name: nginx:alpine
+
+  # Docker Compose components - deploy multi-container applications
+  - type: docker-compose
+    path: ./compose/backend.yaml
+    target: /opt/myapp
+    build: true
+
+  - type: docker-compose
+    path: ./compose/monitoring.yaml
+    target: /opt/monitoring
+    pull: true
 
   # Deb components - install packages and deploy files/services
   - type: deb
@@ -86,10 +101,10 @@ Use the `!INCLUDE` tag to include other YAML files:
 # builder.yaml
 
 name: product-bundle
-arch: arm64
 
 components:
   - !INCLUDE docker-components.yaml
+  - !INCLUDE compose-components.yaml
   - !INCLUDE app-deb.yaml
   - !INCLUDE networking-deb.yaml
 ```
@@ -125,20 +140,22 @@ builder build --rootfs /media/user/rootfs --config ./rpi-config.yaml
 
 ### Bundle Command
 
-Generate a self-extracting makeself bundle for deployment:
+Generate a self-extracting makeself bundle for deployment. The build process runs in a temporary directory that is automatically cleaned up after completion.
 
 ```bash
-builder bundle --rootfs <path> --config <path> --target <jetson|rpi> --output <path>
+builder bundle --rootfs <path-or-url> --config <path> --target <jetson|rpi> --output <path>
 ```
 
 #### Arguments
 
 | Argument | Description |
 |----------|-------------|
-| `--rootfs` | Path to the mounted rootfs directory |
+| `--rootfs` | Path or URL to the rootfs image (`.img` for RPi, `.tar` for Jetson) |
 | `--config` | Path to the YAML configuration file |
 | `--target` | Target platform: `jetson` or `rpi` |
 | `--output` | Output path for the generated bundle |
+| `--bsp` | (Jetson only) Path or URL to the NVIDIA JetPack BSP |
+| `--workdir` | Optional custom working directory (default: tmpdir, auto-cleaned) |
 
 #### Jetson Bundle
 
@@ -146,8 +163,23 @@ Generates a makeself bundle containing:
 - Compressed rootfs tarball
 - NVIDIA flashing script for Jetson devices
 
+Requires the rootfs tar and JetPack BSP:
+
 ```bash
-builder bundle --rootfs /mnt/jetson-rootfs --config ./config.yaml --target jetson --output ./dist/jetson-bundle.run
+builder bundle \
+  --rootfs ./jetson-rootfs.tar \
+  --bsp ./jetpack-bsp.tar \
+  --config ./config.yaml \
+  --target jetson \
+  --output ./dist/jetson-bundle.run
+
+# Or using URLs
+builder bundle \
+  --rootfs https://example.com/jetson-rootfs.tar \
+  --bsp https://example.com/jetpack-bsp.tar \
+  --config ./config.yaml \
+  --target jetson \
+  --output ./dist/jetson-bundle.run
 ```
 
 #### Raspberry Pi Bundle
@@ -157,14 +189,24 @@ Generates a makeself bundle containing:
 - SD card flashing script
 
 ```bash
-builder bundle --rootfs /mnt/rpi-rootfs --config ./config.yaml --target rpi --output ./dist/rpi-bundle.run
+builder bundle \
+  --rootfs ./raspios.img \
+  --config ./config.yaml \
+  --target rpi \
+  --output ./dist/rpi-bundle.run
+
+# Or using a URL
+builder bundle \
+  --rootfs https://example.com/raspios.img \
+  --config ./config.yaml \
+  --target rpi \
+  --output ./dist/rpi-bundle.run
 ```
 
 ## Requirements
 
 - Docker with Docker-in-Docker support
 - Root privileges (for chroot operations)
-- Target rootfs mounted and accessible
 - makeself (for bundle generation)
 
 ## License
