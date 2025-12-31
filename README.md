@@ -6,8 +6,7 @@ A deployment utility for embedded Linux projects that simplifies dependency mana
 
 Builder streamlines the process of preparing embedded Linux rootfs images by automating:
 
-- **Docker image deployment** - Build or pull Docker images and load them directly into the target rootfs using a Docker-in-Docker approach
-- **Docker Compose deployment** - Deploy multi-container applications with compose files
+- **Docker Compose deployment** - Build or pull Docker images and deploy multi-container applications via compose files
 - **Package installation** - Install system packages into the rootfs via chroot
 - **Component deployment** - Install systemd services, copy files with proper permissions
 - **Flashable bundle creation** - Generate self-extracting makeself bundles ready for deployment
@@ -27,16 +26,16 @@ Builder generates deb packages for all component types to enable proper lifecycl
 
 - **Master Package**: A global deb package (`<name>`) that declares dependencies on all component packages. Removing the master package triggers removal of all components, including Docker images and containers.
 
-- **Component Packages**: Each `docker`, `docker-compose`, and `deb` component generates its own deb package (`<name>-<component>`). These packages handle:
+- **Component Packages**: Each `docker-compose` and `deb` component generates its own deb package (`<name>-<component>`). These packages handle:
   - **Installation**: Pull/build Docker images, deploy files, enable services
   - **Upgrade**: Update images, migrate configurations
   - **Removal**: Stop containers, remove images, clean up files
 
-Docker and docker-compose packages do not embed image layers. Instead, they pull from the registry or build locally during installation, keeping packages lightweight.
+Docker Compose packages do not embed image layers. Instead, they pull from the registry or build locally during installation, keeping packages lightweight.
 
 ## Configuration
 
-Create a YAML configuration file to define your build. The root level supports three component types: `docker`, `docker-compose`, and `deb`.
+Create a YAML configuration file to define your build. The root level supports two component types: `docker-compose` and `deb`.
 
 ```yaml
 # builder.yaml
@@ -44,31 +43,6 @@ Create a YAML configuration file to define your build. The root level supports t
 name: product-bundle
 
 components:
-  # Docker components - pull or build container images
-  # Generates: product-bundle-redis deb package
-  - type: docker
-    name: redis
-    packages:
-      - redis-tools
-    images:
-      # Pull from registry (name only)
-      - name: redis:alpine
-
-  # Generates: product-bundle-backend deb package
-  - type: docker
-    name: backend
-    packages:
-      - python3
-      - python3-pip
-    images:
-      # Pull from registry
-      - name: postgres:15
-      # Build from local Dockerfile
-      - name: my-app:latest
-        build:
-          path: ./app
-          context: .
-
   # Docker Compose components - deploy multi-container applications
   # Generates: product-bundle-app-stack deb package
   - type: docker-compose
@@ -140,8 +114,6 @@ From the above configuration, builder generates:
 
 ```
 product-bundle                    # Master package (depends on all below)
-├── product-bundle-redis          # Docker component
-├── product-bundle-backend        # Docker component
 ├── product-bundle-app-stack      # Docker Compose component
 ├── product-bundle-monitoring     # Docker Compose component
 ├── product-bundle-core           # Deb component
@@ -167,7 +139,6 @@ Use the `!INCLUDE` tag to include other YAML files:
 name: product-bundle
 
 components:
-  - !INCLUDE docker-components.yaml
   - !INCLUDE compose-components.yaml
   - !INCLUDE app-deb.yaml
   - !INCLUDE networking-deb.yaml
