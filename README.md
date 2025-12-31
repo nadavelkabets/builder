@@ -10,7 +10,7 @@ Builder streamlines the process of preparing embedded Linux rootfs images by aut
 - **Package installation** - Install system packages into the rootfs via chroot
 - **Component deployment** - Install systemd services, deploy files with proper permissions
 - **Flashable bundle creation** - Generate self-extracting makeself bundles ready for deployment
-- **Unified package management** - All components wrapped in deb packages for clean installation, upgrade, and removal
+- **Unified package management** - All components wrapped in a single deb package for clean installation, upgrade, and removal
 
 ## How It Works
 
@@ -22,109 +22,81 @@ Builder uses two main techniques to prepare your embedded Linux rootfs:
 
 ### Package Management Strategy
 
-Builder generates deb packages for all components to enable proper lifecycle management:
+Builder generates a single deb package containing all components:
 
-- **Master Package**: A global deb package (`<name>`) that declares dependencies on all component packages. Removing the master package triggers removal of all components, including Docker images and containers.
+- **Installation**: Pull/build Docker images, deploy files, enable services
+- **Upgrade**: Update images, migrate configurations
+- **Removal**: Stop containers, remove images, clean up files
 
-- **Component Packages**: Each component in the `components` list generates its own deb package (`<name>-<component>`). These packages handle:
-  - **Installation**: Pull/build Docker images, deploy files, enable services
-  - **Upgrade**: Update images, migrate configurations
-  - **Removal**: Stop containers, remove images, clean up files
-
-Docker Compose packages do not embed image layers. Instead, they pull from the registry or build locally during installation, keeping packages lightweight.
+Docker Compose components do not embed image layers. Instead, they pull from the registry or build locally during installation, keeping packages lightweight.
 
 ## Configuration
 
-Create a YAML configuration file to define your build. Each component in the list generates a deb package and can contain any combination of `docker-compose`, `systemd`, and `file` entries.
+Create a YAML configuration file to define your build. Components are a flat list with three types: `docker-compose`, `systemd`, and `file`.
 
 ```yaml
 # builder.yaml
 
-# External apt dependencies for the master package
+# External apt dependencies
 depends:
   - docker-ce
   - docker-compose-plugin
 
 components:
-  # Generates: my-product-backend deb package
-  - name: backend
-    docker-compose:
-      - path: ./compose/backend.yaml
-        target: /opt/backend
-        operation: build
-        services:
-          - api
-          - worker
-      - path: ./compose/cache.yaml
-        target: /opt/cache
-        operation: pull
-        services:
-          - redis
-    systemd:
-      - service: ./systemd/backend.service
-        enable: true
-      - service: ./systemd/worker.service
-        enable: true
-    file:
-      - source: ./config/backend.conf
-        target: /etc/myapp/backend.conf
-        chmod: 644
-        chown: root:root
+  # Docker Compose deployments
+  - type: docker-compose
+    path: ./compose/backend.yaml
+    target: /opt/backend
+    operation: build
+    services:
+      - api
+      - worker
 
-  # Generates: my-product-monitoring deb package
-  - name: monitoring
-    docker-compose:
-      - path: ./compose/monitoring.yaml
-        target: /opt/monitoring
-        operation: pull
-        services:
-          - prometheus
-          - grafana
-          - alertmanager
-    systemd:
-      - service: ./systemd/monitoring.service
-        enable: true
+  - type: docker-compose
+    path: ./compose/cache.yaml
+    target: /opt/cache
+    operation: pull
+    services:
+      - redis
 
-  # Generates: my-product-scripts deb package
-  - name: scripts
-    file:
-      - source: ./scripts/start.sh
-        target: /usr/local/bin/start.sh
-        chmod: u+x
-      - source: ./scripts/backup.sh
-        target: /usr/local/bin/backup.sh
-        chmod: u+x
-    systemd:
-      - service: ./systemd/backup.service
-        enable: false
+  - type: docker-compose
+    path: ./compose/monitoring.yaml
+    target: /opt/monitoring
+    operation: pull
+    services:
+      - prometheus
+      - grafana
+      - alertmanager
 
-  # Generates: my-product-ssh deb package
-  - name: ssh
-    file:
-      - source: ./config/sshd_config
-        target: /etc/ssh/sshd_config
-        chmod: 600
-```
+  # Systemd services
+  - type: systemd
+    service: ./systemd/backend.service
+    enable: true
 
-### Generated Package Structure
+  - type: systemd
+    service: ./systemd/worker.service
+    enable: true
 
-From the above configuration, builder generates:
+  - type: systemd
+    service: ./systemd/monitoring.service
+    enable: true
 
-```
-my-product                    # Master package (depends on all below)
-├── my-product-backend        # docker-compose + systemd + file
-├── my-product-monitoring     # docker-compose + systemd
-├── my-product-scripts        # file + systemd
-└── my-product-ssh            # file only
-```
+  # File deployments
+  - type: file
+    source: ./config/backend.conf
+    target: /etc/myapp/backend.conf
+    chmod: 644
+    chown: root:root
 
-**Uninstall behavior:**
-```bash
-# Remove everything
-apt remove my-product
+  - type: file
+    source: ./scripts/start.sh
+    target: /usr/local/bin/start.sh
+    chmod: u+x
 
-# Remove only the monitoring stack
-apt remove my-product-monitoring
+  - type: file
+    source: ./config/sshd_config
+    target: /etc/ssh/sshd_config
+    chmod: 600
 ```
 
 ### Including Other Configuration Files
@@ -135,9 +107,9 @@ Use the `!INCLUDE` tag to include other YAML files:
 # builder.yaml
 
 components:
-  - !INCLUDE backend.yaml
-  - !INCLUDE monitoring.yaml
-  - !INCLUDE scripts.yaml
+  - !INCLUDE compose-components.yaml
+  - !INCLUDE systemd-components.yaml
+  - !INCLUDE file-components.yaml
 ```
 
 ### Environment Variables
@@ -148,16 +120,16 @@ Use the `!ENV` tag to reference environment variables in your configuration:
 # builder.yaml
 
 components:
-  - name: app
-    docker-compose:
-      - path: ./compose/app.yaml
-        target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
-        operation: pull
-        services:
-          - api
-    file:
-      - source: !ENV CONFIG_PATH
-        target: /etc/myapp/config.yaml
+  - type: docker-compose
+    path: ./compose/app.yaml
+    target: !ENV ${INSTALL_DIR:/opt/myapp}  # With default value
+    operation: pull
+    services:
+      - api
+
+  - type: file
+    source: !ENV CONFIG_PATH
+    target: /etc/myapp/config.yaml
 ```
 
 ## Usage
