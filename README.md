@@ -26,7 +26,7 @@ Builder generates deb packages for all component types to enable proper lifecycl
 
 - **Master Package**: A global deb package (`<name>`) that declares dependencies on all component packages. Removing the master package triggers removal of all components, including Docker images and containers.
 
-- **Component Packages**: Each `docker-compose` and `deb` component generates its own deb package (`<name>-<component>`). These packages handle:
+- **Component Packages**: Each `docker-compose`, `deb`, `service`, and `copy` component generates its own deb package (`<name>-<component>`). These packages handle:
   - **Installation**: Pull/build Docker images, deploy files, enable services
   - **Upgrade**: Update images, migrate configurations
   - **Removal**: Stop containers, remove images, clean up files
@@ -35,7 +35,7 @@ Docker Compose packages do not embed image layers. Instead, they pull from the r
 
 ## Configuration
 
-Create a YAML configuration file to define your build. The root level supports two component types: `docker-compose` and `deb`.
+Create a YAML configuration file to define your build. The root level supports four component types: `docker-compose`, `deb`, `service`, and `copy`.
 
 ```yaml
 # builder.yaml
@@ -69,7 +69,7 @@ components:
       - grafana
       - alertmanager
 
-  # Deb components - install packages and deploy files/services
+  # Deb components - install system packages
   # Generates: product-bundle-core deb package
   - type: deb
     name: core
@@ -77,31 +77,49 @@ components:
       - python3
       - python3-pip
       - nginx
-    services:
-      - systemd: path/to/app.service
-        enable: true
-      - systemd: path/to/worker.service
-        enable: true
-    files:
-      - name: start_script
-        source: ./scripts/start.sh
-        target: /usr/local/bin
-        chmod: u+x
-      - name: config
-        source: ./config/app.conf
-        target: /etc/myapp
-        chmod: 644
-        chown: root:root
 
   # Generates: product-bundle-ssh deb package
   - type: deb
     name: ssh
     packages:
       - openssh-server
+
+  # Service components - deploy and manage systemd services
+  # Generates: product-bundle-app-services deb package
+  - type: service
+    name: app-services
+    services:
+      - systemd: path/to/app.service
+        enable: true
+      - systemd: path/to/worker.service
+        enable: true
+
+  # Generates: product-bundle-sshd deb package
+  - type: service
+    name: sshd
     services:
       - systemd: path/to/sshd-custom.service
         enable: false
+
+  # Copy components - deploy files with permissions
+  # Generates: product-bundle-scripts deb package
+  - type: copy
+    name: scripts
     files:
+      - name: start_script
+        source: ./scripts/start.sh
+        target: /usr/local/bin
+        chmod: u+x
+
+  # Generates: product-bundle-configs deb package
+  - type: copy
+    name: configs
+    files:
+      - name: app_config
+        source: ./config/app.conf
+        target: /etc/myapp
+        chmod: 644
+        chown: root:root
       - name: sshd_config
         source: ./config/sshd_config
         target: /etc/ssh
@@ -117,7 +135,11 @@ product-bundle                    # Master package (depends on all below)
 ├── product-bundle-app-stack      # Docker Compose component
 ├── product-bundle-monitoring     # Docker Compose component
 ├── product-bundle-core           # Deb component
-└── product-bundle-ssh            # Deb component
+├── product-bundle-ssh            # Deb component
+├── product-bundle-app-services   # Service component
+├── product-bundle-sshd           # Service component
+├── product-bundle-scripts        # Copy component
+└── product-bundle-configs        # Copy component
 ```
 
 **Uninstall behavior:**
