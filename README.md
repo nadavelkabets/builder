@@ -25,14 +25,14 @@ Builder uses two main techniques to prepare your embedded Linux rootfs:
 Builder generates a single deb package containing all components:
 
 - **Installation**: Pull/build Docker images, deploy files, enable services
-- **Upgrade**: Update images, migrate configurations
+- **Upgrade**: Pull new images before removing old ones (maximizes layer cache reuse), then migrate configurations
 - **Removal**: Stop containers, remove images, clean up files
 
 Docker Compose components do not embed image layers. Instead, they pull from the registry or build locally during installation, keeping packages lightweight.
 
 ## Configuration
 
-Create a YAML configuration file to define your build. Components are a flat list with three types: `docker-compose`, `systemd`, and `file`.
+Create a YAML configuration file to define your build. Components are a flat list with four types: `docker-compose`, `systemd`, `file`, and `directory`.
 
 ```yaml
 # builder.yaml
@@ -97,6 +97,13 @@ components:
     source: ./config/sshd_config
     target: /etc/ssh/sshd_config
     chmod: 600
+
+  # Directory deployments
+  - type: directory
+    source: ./config/myapp
+    target: /etc/myapp
+    chmod: 755
+    chown: root:root
 ```
 
 ### Including Other Configuration Files
