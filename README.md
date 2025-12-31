@@ -108,18 +108,16 @@ components:
 
 ### Including Other Configuration Files
 
-Use the `!INCLUDE` tag to include other YAML files. Included files contain a list of components that gets flattened into the parent list:
+Use the `!include` tag with pyyaml-include to include other YAML files. The `flatten` parameter merges component lists from multiple files:
 
 ```yaml
 # builder.yaml
 
-components:
-  - !INCLUDE backend.yaml
-  - !INCLUDE monitoring.yaml
+components: !include {urlpath: "components/*.yaml", flatten: true}
 ```
 
 ```yaml
-# backend.yaml
+# components/backend.yaml
 
 - type: docker-compose
   path: ./compose/backend.yaml
@@ -138,6 +136,8 @@ components:
   target: /etc/myapp/backend.conf
   chmod: 644
 ```
+
+<!-- TODO: Decide whether to implement YAML processing in Python or Bash -->
 
 ### Environment Variables
 
