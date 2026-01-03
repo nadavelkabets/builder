@@ -14,7 +14,7 @@ Builder is a deployment utility for embedded Linux projects (Jetson and Raspberr
 ┌──────────────┐     ┌───────────────┐     ┌──────────────┐
 │              │     │               │     │              │
 │  CLI Layer   ├────►│  Core Engine  ├────►│ Output Layer │
-│  (argparse)  │     │               │     │              │
+│   (click)    │     │               │     │              │
 └──────────────┘     └───────┬───────┘     └──────────────┘
                              │
                ┌─────────────┼─────────────┐
@@ -288,7 +288,7 @@ builder/
 - Implement !ENV custom YAML tag
 - Implement config loader with !include support
 - Define Pydantic schemas for all component types
-- Create CLI with argparse
+- Create CLI with click
 
 ### Phase 2: Component Handlers
 - Create abstract base component handler
@@ -337,19 +337,121 @@ builder/
 
 ---
 
-## 6. Critical Considerations
+## 6. Execution Environment
 
-### 6.1 Security
+### 6.1 Docker-in-Docker with Custom data-root
+
+Builder requires a specialized execution environment to pre-load Docker images into the rootfs during build time (not first boot). This is achieved using Docker-in-Docker with a custom `data-root` configuration.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ubuntu-dind container (x86_64)                             │
+│                                                             │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ dockerd                                                │ │
+│  │   data-root: /rootfs/var/lib/docker                    │ │
+│  │                                                        │ │
+│  │ daemon.json:                                           │ │
+│  │ {                                                      │ │
+│  │   "data-root": "/rootfs/var/lib/docker"                │ │
+│  │ }                                                      │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                          │                                  │
+│                          ▼                                  │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ /rootfs (mounted rootfs volume)                        │ │
+│  │                                                        │ │
+│  │   /var/lib/docker/     ← Image layers extracted here   │ │
+│  │   /var/run/docker.sock ← Bind mount from host DinD     │ │
+│  │                                                        │ │
+│  │   chroot + qemu-aarch64 (for ARM rootfs)               │ │
+│  │   └── docker CLI uses x86 daemon via socket            │ │
+│  │       (10x faster than QEMU-emulated extraction)       │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Why This Approach?
+
+| Alternative | Problem |
+|-------------|---------|
+| Load images on first boot | Slow boot, requires extra disk space for tarballs |
+| Rootless Docker | Requires user namespaces, not available in most CI |
+| containerd direct write | Experimental, requires Docker's containerd image store |
+| skopeo to overlay2 | Docker's storage format is internal, unsupported |
+
+#### Setup Steps
+
+1. **Start ubuntu-dind container** matching rootfs Ubuntu version:
+   ```bash
+   docker run --privileged -v /path/to/rootfs:/rootfs \
+     -v /path/to/daemon.json:/etc/docker/daemon.json \
+     cruizba/ubuntu-dind:latest
+   ```
+
+2. **daemon.json configuration**:
+   ```json
+   {
+     "data-root": "/rootfs/var/lib/docker"
+   }
+   ```
+
+3. **Before chroot, bind mount the socket**:
+   ```bash
+   mount --bind /var/run/docker.sock /rootfs/var/run/docker.sock
+   ```
+
+4. **Docker commands in chroot use x86 daemon**:
+   ```bash
+   chroot /rootfs docker pull myimage:tag
+   # Layers extracted by x86 dockerd, not QEMU-emulated ARM
+   ```
+
+### 6.2 CI Environment Requirements
+
+**⚠️ Privileged access required** - Standard SaaS CI runners do not support this workflow.
+
+| CI Platform | Supported Configuration |
+|-------------|------------------------|
+| GitHub Actions | Self-hosted runners with Docker privileged access |
+| GitLab CI | Self-managed runners with `privileged = true` |
+| Jenkins | Agents with Docker socket access |
+| CircleCI | Machine executors (not Docker executors) |
+
+#### Example GitLab CI Configuration
+
+```yaml
+# .gitlab-ci.yml
+build:
+  image: cruizba/ubuntu-dind:22.04
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+  script:
+    - builder build --rootfs /rootfs --config builder.yaml --name myapp
+  tags:
+    - privileged  # Requires runner with privileged = true
+```
+
+---
+
+## 7. Critical Considerations
+
+### 7.1 Security
 
 | Concern | Mitigation |
 |---------|------------|
+| Privileged containers | Use only in controlled CI environments |
 | Root privileges | Document clearly; consider fakeroot for deb building |
 | Chroot execution | Validate all paths; prevent directory traversal |
 | Shell injection | Use subprocess with list args, never shell=True with user input |
 | Environment variables | Never log values of !ENV expansions |
 | Downloads | Use HTTPS only; verify checksums when available |
 
-### 6.2 Error Handling
+### 7.2 Error Handling
 
 ```python
 # builder/exceptions.py
@@ -370,7 +472,7 @@ class DockerError(BuilderError):
     pass
 ```
 
-### 6.3 Upgrade Flow (Layer Cache Optimization)
+### 7.3 Upgrade Flow (Layer Cache Optimization)
 
 ```bash
 # In postinst script:
@@ -386,16 +488,18 @@ docker compose -f /opt/app/docker-compose.yaml up -d
 
 ---
 
-## 7. Key Design Decisions
+## 8. Key Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Language | Python 3.10+ | YAML processing, Docker SDK, maintainability |
-| CLI | argparse | Zero dependencies, sufficient for needs |
+| CLI | click | Clean decorator syntax, better than argparse |
 | Config validation | Pydantic v2 | Type safety, great error messages |
 | YAML !include | pyyaml-include | Supports glob patterns and flatten |
-| Docker | docker-py | Official SDK, Pythonic API |
+| Docker integration | DinD + custom data-root | Pre-load images during build, not first boot |
+| Docker SDK | docker-py | Official SDK, Pythonic API |
 | Deb packaging | dpkg-deb (shell) | Simple, no library needed |
 | Makeself | Shell invocation | No wrapper needed |
 | Templates | Jinja2 | Industry standard |
 | Terminal output | Rich | Beautiful progress bars |
+| CI requirement | Privileged runners | No SaaS CI alternative for image pre-loading |
