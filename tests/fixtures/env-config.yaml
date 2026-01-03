@@ -4,5 +4,5 @@ depends:
 components:
   - type: file
     source: !ENV CONFIG_PATH
-    target: !ENV ${TARGET_PATH:/etc/default/app}
+    target: !ENV ${TARGET_PATH:-/etc/default/app}
     chmod: 644
