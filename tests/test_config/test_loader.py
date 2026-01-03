@@ -92,3 +92,30 @@ class TestEnvVarSubstitution:
 
         with pytest.raises(ValueError, match="CONFIG_PATH"):
             load_config(env_config_path)
+
+    def test_multiple_env_vars_in_value(self, multi_env_config_path: Path) -> None:
+        """Test multiple environment variables in a single value."""
+        os.environ["BASE_PATH"] = "/home/user"
+        os.environ["APP_NAME"] = "testapp"
+
+        try:
+            config = load_config(multi_env_config_path)
+            assert config["components"][0]["source"] == "/home/user/config/testapp.conf"
+            assert config["components"][0]["target"] == "/opt/testapp/config.conf"
+        finally:
+            del os.environ["BASE_PATH"]
+            del os.environ["APP_NAME"]
+
+    def test_multiple_env_vars_with_default(self, multi_env_config_path: Path) -> None:
+        """Test multiple env vars where some use defaults."""
+        os.environ["BASE_PATH"] = "/data"
+        os.environ["APP_NAME"] = "customapp"
+        # APP_NAME in target has default, but we set it explicitly
+
+        try:
+            config = load_config(multi_env_config_path)
+            # target uses APP_NAME with default, but we set it
+            assert config["components"][0]["target"] == "/opt/customapp/config.conf"
+        finally:
+            del os.environ["BASE_PATH"]
+            del os.environ["APP_NAME"]

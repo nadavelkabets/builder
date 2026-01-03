@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 from yaml_include import Constructor as IncludeConstructor
 
-from builder.config.env import add_env_constructor
+from builder.config.env import EnvVarConstructor
 
 
 class BuilderLoader(yaml.SafeLoader):
@@ -40,7 +40,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
     )
 
     # Register !ENV constructor
-    add_env_constructor(BuilderLoader)
+    BuilderLoader.add_constructor("!ENV", EnvVarConstructor())
 
     with open(config_path) as f:
         return yaml.load(f, Loader=BuilderLoader)

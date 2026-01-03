@@ -1,0 +1,8 @@
+depends:
+  - docker-ce
+
+components:
+  - type: file
+    source: !ENV ${BASE_PATH}/config/${APP_NAME}.conf
+    target: !ENV /opt/${APP_NAME:myapp}/config.conf
+    chmod: 644

@@ -26,6 +26,12 @@ def env_config_path(fixtures_dir: Path) -> Path:
 
 
 @pytest.fixture
+def multi_env_config_path(fixtures_dir: Path) -> Path:
+    """Return path to config with multiple environment variables."""
+    return fixtures_dir / "multi-env-config.yaml"
+
+
+@pytest.fixture
 def temp_rootfs(tmp_path: Path) -> Path:
     """Create minimal rootfs structure for testing."""
     rootfs = tmp_path / "rootfs"

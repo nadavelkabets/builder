@@ -43,6 +43,7 @@ def build(rootfs: Path, config: Path, name: str) -> None:
     console.print(f"  Config: {config}")
 
     # Load and validate configuration
+    # Note: Click validates CLI args (file exists), Pydantic validates YAML schema
     raw_config = load_config(config)
     builder_config = BuilderConfig.model_validate(raw_config)
 
@@ -111,6 +112,7 @@ def bundle(
         raise click.UsageError("--bsp is required for Jetson target")
 
     # Load and validate configuration
+    # Note: Click validates CLI args (file exists), Pydantic validates YAML schema
     raw_config = load_config(config)
     builder_config = BuilderConfig.model_validate(raw_config)
 
