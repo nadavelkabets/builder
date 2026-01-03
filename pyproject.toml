@@ -27,7 +27,7 @@ dependencies = [
     "click>=8.0",
     "rich>=13.0",
     "httpx>=0.25",
-    "envsubst>=0.1.5",
+    "expandvars>=0.12",
 ]
 
 [project.optional-dependencies]
