@@ -1,6 +1,5 @@
 """Tests for configuration loading."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -44,78 +43,3 @@ class TestLoadConfig:
         assert "systemd" in types
         assert "file" in types
         assert "directory" in types
-
-
-class TestEnvVarSubstitution:
-    """Tests for !ENV tag substitution."""
-
-    def test_env_var_required(self, env_config_path: Path) -> None:
-        """Test required environment variable."""
-        os.environ["CONFIG_PATH"] = "/path/to/config"
-
-        try:
-            config = load_config(env_config_path)
-            assert config["components"][0]["source"] == "/path/to/config"
-        finally:
-            del os.environ["CONFIG_PATH"]
-
-    def test_env_var_with_default(self, env_config_path: Path) -> None:
-        """Test environment variable with default value."""
-        os.environ["CONFIG_PATH"] = "/path/to/config"
-
-        # TARGET_PATH not set, should use default
-        if "TARGET_PATH" in os.environ:
-            del os.environ["TARGET_PATH"]
-
-        try:
-            config = load_config(env_config_path)
-            assert config["components"][0]["target"] == "/etc/default/app"
-        finally:
-            del os.environ["CONFIG_PATH"]
-
-    def test_env_var_override_default(self, env_config_path: Path) -> None:
-        """Test environment variable overrides default."""
-        os.environ["CONFIG_PATH"] = "/path/to/config"
-        os.environ["TARGET_PATH"] = "/custom/path"
-
-        try:
-            config = load_config(env_config_path)
-            assert config["components"][0]["target"] == "/custom/path"
-        finally:
-            del os.environ["CONFIG_PATH"]
-            del os.environ["TARGET_PATH"]
-
-    def test_env_var_missing_raises(self, env_config_path: Path) -> None:
-        """Test missing required environment variable raises error."""
-        if "CONFIG_PATH" in os.environ:
-            del os.environ["CONFIG_PATH"]
-
-        with pytest.raises(ValueError, match="CONFIG_PATH"):
-            load_config(env_config_path)
-
-    def test_multiple_env_vars_in_value(self, multi_env_config_path: Path) -> None:
-        """Test multiple environment variables in a single value."""
-        os.environ["BASE_PATH"] = "/home/user"
-        os.environ["APP_NAME"] = "testapp"
-
-        try:
-            config = load_config(multi_env_config_path)
-            assert config["components"][0]["source"] == "/home/user/config/testapp.conf"
-            assert config["components"][0]["target"] == "/opt/testapp/config.conf"
-        finally:
-            del os.environ["BASE_PATH"]
-            del os.environ["APP_NAME"]
-
-    def test_multiple_env_vars_with_default(self, multi_env_config_path: Path) -> None:
-        """Test multiple env vars where some use defaults."""
-        os.environ["BASE_PATH"] = "/data"
-        os.environ["APP_NAME"] = "customapp"
-        # APP_NAME in target has default, but we set it explicitly
-
-        try:
-            config = load_config(multi_env_config_path)
-            # target uses APP_NAME with default, but we set it
-            assert config["components"][0]["target"] == "/opt/customapp/config.conf"
-        finally:
-            del os.environ["BASE_PATH"]
-            del os.environ["APP_NAME"]

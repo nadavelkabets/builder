@@ -3,12 +3,9 @@
 from pathlib import Path
 
 import click
-from rich.console import Console
 
 from builder import __version__
 from builder.config import BuilderConfig, load_config
-
-console = Console()
 
 
 @click.group()
@@ -38,20 +35,11 @@ def main() -> None:
 )
 def build(rootfs: Path, config: Path, name: str) -> None:
     """Prepare rootfs with all configured components."""
-    console.print(f"[bold blue]Builder[/] - Building {name}")
-    console.print(f"  Rootfs: {rootfs}")
-    console.print(f"  Config: {config}")
-
-    # Load and validate configuration
-    # Note: Click validates CLI args (file exists), Pydantic validates YAML schema
+    # Click validates CLI args (file exists), Pydantic validates YAML schema
     raw_config = load_config(config)
-    builder_config = BuilderConfig.model_validate(raw_config)
+    _config = BuilderConfig.model_validate(raw_config)
 
-    console.print(f"  Components: {len(builder_config.components)}")
-    console.print(f"  Dependencies: {builder_config.depends}")
-
-    # TODO: Implement build logic
-    console.print("[yellow]Build command not yet implemented[/]")
+    raise NotImplementedError("Build command not yet implemented")
 
 
 @main.command()
@@ -102,24 +90,14 @@ def bundle(
     workdir: Path | None,
 ) -> None:
     """Create a flashable makeself bundle for deployment."""
-    console.print(f"[bold blue]Builder[/] - Bundling {name}")
-    console.print(f"  Rootfs: {rootfs}")
-    console.print(f"  Config: {config}")
-    console.print(f"  Target: {target}")
-    console.print(f"  Output: {output}")
-
     if target == "jetson" and not bsp:
         raise click.UsageError("--bsp is required for Jetson target")
 
-    # Load and validate configuration
-    # Note: Click validates CLI args (file exists), Pydantic validates YAML schema
+    # Click validates CLI args (file exists), Pydantic validates YAML schema
     raw_config = load_config(config)
-    builder_config = BuilderConfig.model_validate(raw_config)
+    _config = BuilderConfig.model_validate(raw_config)
 
-    console.print(f"  Components: {len(builder_config.components)}")
-
-    # TODO: Implement bundle logic
-    console.print("[yellow]Bundle command not yet implemented[/]")
+    raise NotImplementedError("Bundle command not yet implemented")
 
 
 if __name__ == "__main__":
