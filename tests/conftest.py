@@ -39,3 +39,40 @@ def temp_rootfs(tmp_path: Path) -> Path:
     (rootfs / "etc/systemd/system").mkdir(parents=True)
     (rootfs / "usr/local/bin").mkdir(parents=True)
     return rootfs
+
+
+@pytest.fixture
+def env_vars(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Set up basic environment variables for env-config.yaml tests."""
+    vars = {"CONFIG_PATH": "/path/to/config"}
+    for key, value in vars.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("TARGET_PATH", raising=False)
+    return vars
+
+
+@pytest.fixture
+def env_vars_with_target(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Set up environment variables including TARGET_PATH override."""
+    vars = {"CONFIG_PATH": "/path/to/config", "TARGET_PATH": "/custom/path"}
+    for key, value in vars.items():
+        monkeypatch.setenv(key, value)
+    return vars
+
+
+@pytest.fixture
+def multi_env_vars(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Set up environment variables for multi-env-config.yaml tests."""
+    vars = {"BASE_PATH": "/home/user", "APP_NAME": "testapp"}
+    for key, value in vars.items():
+        monkeypatch.setenv(key, value)
+    return vars
+
+
+@pytest.fixture
+def multi_env_vars_custom(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Set up custom environment variables for multi-env tests."""
+    vars = {"BASE_PATH": "/data", "APP_NAME": "customapp"}
+    for key, value in vars.items():
+        monkeypatch.setenv(key, value)
+    return vars
