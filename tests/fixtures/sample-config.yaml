@@ -1,0 +1,27 @@
+depends:
+  - docker-ce
+  - docker-compose-plugin
+
+components:
+  - type: docker-compose
+    path: ./compose/backend.yaml
+    target: /opt/backend
+    operation: build
+    services:
+      - api
+      - worker
+
+  - type: systemd
+    service: ./systemd/backend.service
+    enable: true
+
+  - type: file
+    source: ./config/backend.conf
+    target: /etc/myapp/backend.conf
+    chmod: 644
+    chown: root:root
+
+  - type: directory
+    source: ./config/myapp
+    target: /etc/myapp
+    chmod: 755
