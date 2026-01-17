@@ -9,12 +9,6 @@ from yaml_include import Constructor as IncludeConstructor
 from builder.config.env import EnvVarConstructor
 
 
-class BuilderLoader(yaml.SafeLoader):
-    """Custom YAML loader with !include and !ENV support."""
-
-    pass
-
-
 def load_config(config_path: Path) -> dict[str, Any]:
     """
     Load a YAML configuration file with !include and !ENV support.
@@ -33,14 +27,15 @@ def load_config(config_path: Path) -> dict[str, Any]:
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
+    # Create a fresh loader class for each call to avoid constructor conflicts
+    class ConfigLoader(yaml.SafeLoader):
+        pass
+
     # Register !include constructor with base directory
-    IncludeConstructor.add_to_loader_class(
-        loader_class=BuilderLoader,
-        base_dir=config_path.parent,
-    )
+    ConfigLoader.add_constructor("!include", IncludeConstructor(base_dir=config_path.parent))
 
     # Register !ENV constructor
-    BuilderLoader.add_constructor("!ENV", EnvVarConstructor())
+    ConfigLoader.add_constructor("!ENV", EnvVarConstructor())
 
     with open(config_path) as f:
-        return yaml.load(f, Loader=BuilderLoader)
+        return yaml.load(f, Loader=ConfigLoader)
